@@ -113,7 +113,7 @@ send_netflow_v5(struct FLOW **flows, int num_flows, int nfsock, u_int16_t ifidx,
 		if (flows[i]->octets[0] > 0) {
 			flw->src_ip = flows[i]->addr[0].v4.s_addr;
 			flw->dest_ip = flows[i]->addr[1].v4.s_addr;
-      flw->nexthop_ip = 0;
+      flw->nexthop_ip = 0; /*Possibly left undefined, so I set to 0*/
 			flw->src_port = flows[i]->port[0];
 			flw->dest_port = flows[i]->port[1];
 			flw->flow_packets = htonl(flows[i]->packets[0]);
@@ -126,10 +126,14 @@ send_netflow_v5(struct FLOW **flows, int num_flows, int nfsock, u_int16_t ifidx,
 			    system_boot_time));
 			flw->tcp_flags = flows[i]->tcp_flags[0];
 			flw->protocol = flows[i]->protocol;
+			
+			/*Hack using the last 2 bytes of the packet MAC addresses to generate fake AS numbers*/
       memcpy((void *)&flw->src_as, (void *)&(flows[i]->src_adj_addr[4]), 2);
-      memcpy((void *)&flw->dest_as, (void *)&(flows[i]->dest_adj_addr[4]), 2);
-      flw->src_mask = (u_int8_t) 0;
-      flw->dst_mask = (u_int8_t) 0;
+      memcpy((void *)&flw->dest_as, (void *)&(flows[i]->dest_adj_addr[4]), 2);    
+       
+      flw->src_mask = (u_int8_t) 0; /*Possibly left undefined, so I set to 0*/
+      flw->dst_mask = (u_int8_t) 0; /*Possibly left undefined, so I set to 0*/
+      
 			offset += sizeof(*flw);
 			j++;
 			hdr->flows++;
@@ -141,7 +145,7 @@ send_netflow_v5(struct FLOW **flows, int num_flows, int nfsock, u_int16_t ifidx,
 		if (flows[i]->octets[1] > 0) {
 			flw->src_ip = flows[i]->addr[1].v4.s_addr;
 			flw->dest_ip = flows[i]->addr[0].v4.s_addr;
-      flw->nexthop_ip = 0;
+      flw->nexthop_ip = 0; /*Possibly left undefined, so I set to 0*/
 			flw->src_port = flows[i]->port[1];
 			flw->dest_port = flows[i]->port[0];
 			flw->flow_packets = htonl(flows[i]->packets[1]);
@@ -154,10 +158,14 @@ send_netflow_v5(struct FLOW **flows, int num_flows, int nfsock, u_int16_t ifidx,
 			    system_boot_time));
 			flw->tcp_flags = flows[i]->tcp_flags[1];
 			flw->protocol = flows[i]->protocol;
+
+			/*Hack using the last 2 bytes of the packet MAC addresses to generate fake AS numbers*/
       memcpy((void *)&flw->dest_as, (void *)&(flows[i]->src_adj_addr[4]), 2);
       memcpy((void *)&flw->src_as, (void *)&(flows[i]->dest_adj_addr[4]), 2);
-      flw->src_mask = (u_int8_t) 0;
-      flw->dst_mask = (u_int8_t) 0;
+      
+      flw->src_mask = (u_int8_t) 0; /*Possibly left undefined, so I set to 0*/
+      flw->dst_mask = (u_int8_t) 0; /*Possibly left undefined, so I set to 0*/
+
 			offset += sizeof(*flw);
 			j++;
 			hdr->flows++;
