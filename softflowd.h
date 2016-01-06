@@ -181,6 +181,9 @@ struct FLOW {
 	/* Per-endpoint statistics (all in _host_ byte order) */
 	u_int32_t octets[2];			/* Octets so far */
 	u_int32_t packets[2];			/* Packets so far */
+  
+  u_int8_t src_adj_addr[6];   /*source MAC address from data link layer*/
+  u_int8_t dest_adj_addr[6];  /*Destination MAC address from data link layer*/
 };
 
 /*

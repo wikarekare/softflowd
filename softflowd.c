@@ -348,9 +348,10 @@ transport_to_flowrec(struct FLOW *flow, const u_int8_t *pkt,
 }
 
 /* Convert a IPv4 packet to a partial flow record (used for comparison) */
+/*Hacked to capture enough of upstream routers Mac address to uniquely identify packet route*/
 static int
 ipv4_to_flowrec(struct FLOW *flow, const u_int8_t *pkt, size_t caplen, 
-    size_t len, int *isfrag, int af)
+    size_t len, int *isfrag, int af, u_int8_t src_adj_addr[6],  u_int8_t dest_adj_addr[6]) /*Added source and dest addresses*/
 {
 	const struct ip *ip = (const struct ip *)pkt;
 	int ndx;
@@ -369,6 +370,9 @@ ipv4_to_flowrec(struct FLOW *flow, const u_int8_t *pkt, size_t caplen,
 	flow->protocol = ip->ip_p;
 	flow->octets[ndx] = len;
 	flow->packets[ndx] = 1;
+	/*Copy source and dest addresses into flow record*/
+  memcpy(flow->src_adj_addr,   src_adj_addr, 6);
+  memcpy(flow->dest_adj_addr, dest_adj_addr, 6);
 
 	*isfrag = (ntohs(ip->ip_off) & (IP_OFFMASK|IP_MF)) ? 1 : 0;
 
@@ -381,9 +385,10 @@ ipv4_to_flowrec(struct FLOW *flow, const u_int8_t *pkt, size_t caplen,
 }
 
 /* Convert a IPv6 packet to a partial flow record (used for comparison) */
+/*Hacked to capture enough of upstream routers Mac address to uniquely identify packet route*/
 static int
 ipv6_to_flowrec(struct FLOW *flow, const u_int8_t *pkt, size_t caplen, 
-    size_t len, int *isfrag, int af)
+    size_t len, int *isfrag, int af, u_int8_t src_adj_addr[6],  u_int8_t dest_adj_addr[6])
 {
 	const struct ip6_hdr *ip6 = (const struct ip6_hdr *)pkt;
 	const struct ip6_ext *eh6;
@@ -406,6 +411,9 @@ ipv6_to_flowrec(struct FLOW *flow, const u_int8_t *pkt, size_t caplen,
 	flow->addr[ndx ^ 1].v6 = ip6->ip6_dst;
 	flow->octets[ndx] = len;
 	flow->packets[ndx] = 1;
+	/*Copy source and dest addresses into flow record*/
+  memcpy(flow->src_adj_addr, src_adj_addr, 6);
+  memcpy(flow->dest_adj_addr, dest_adj_addr, 6);
 
 	*isfrag = 0;
 	nxt = ip6->ip6_nxt;
@@ -542,10 +550,11 @@ flow_update_expiry(struct FLOWTRACK *ft, struct FLOW *flow)
  * Also marks flows for fast expiry, based on flow or packet attributes
  * (the actual expiry is performed elsewhere)
  */
+/*Hacked to capture enough of upstream routers Mac address to uniquely identify packet route*/
 static int
 process_packet(struct FLOWTRACK *ft, const u_int8_t *pkt, int af,
     const u_int32_t caplen, const u_int32_t len, 
-    const struct timeval *received_time)
+    const struct timeval *received_time, u_int8_t *src_adj_addr,  u_int8_t *dest_adj_addr)
 {
 	struct FLOW tmp, *flow;
 	int frag;
@@ -556,11 +565,11 @@ process_packet(struct FLOWTRACK *ft, const u_int8_t *pkt, int af,
 	memset(&tmp, 0, sizeof(tmp));
 	switch (af) {
 	case AF_INET:
-		if (ipv4_to_flowrec(&tmp, pkt, caplen, len, &frag, af) == -1)
+		if (ipv4_to_flowrec(&tmp, pkt, caplen, len, &frag, af, src_adj_addr, dest_adj_addr) == -1) /*Hacked to pass adj addresses*/
 			goto bad;
 		break;
 	case AF_INET6:
-		if (ipv6_to_flowrec(&tmp, pkt, caplen, len, &frag, af) == -1)
+		if (ipv6_to_flowrec(&tmp, pkt, caplen, len, &frag, af, src_adj_addr, dest_adj_addr) == -1) /*Hacked to pass adj addresses*/
 			goto bad;
 		break;
 	default:
@@ -1126,7 +1135,7 @@ flow_cb(u_char *user_data, const struct pcap_pkthdr* phdr,
 	int s, af;
 	struct CB_CTXT *cb_ctxt = (struct CB_CTXT *)user_data;
 	struct timeval tv;
-
+  u_int8_t src_adj_addr[6],  dest_adj_addr[6];
 	/*
 	 * If we don't have a system boot time already, then figure it
 	 * from the reception of the first packet.
@@ -1143,6 +1152,10 @@ flow_cb(u_char *user_data, const struct pcap_pkthdr* phdr,
 		cb_ctxt->ft->non_sampled_packets++;
 		return;
 	}
+	
+  memcpy((void *)&src_adj_addr, (void *) &pkt[6], (size_t) 6); /*HACK to capture a fake source AS number from the source MAC address*/
+  memcpy((void *)&dest_adj_addr, (void *) &pkt[0], (size_t) 6); /*HACK to capture a fake destination AS number from the destination MAC address*/
+
 	s = datalink_check(cb_ctxt->linktype, pkt, phdr->caplen, &af);
 	if (s < 0 || (!cb_ctxt->want_v6 && af == AF_INET6)) {
 		cb_ctxt->ft->non_ip_packets++;
@@ -1150,7 +1163,7 @@ flow_cb(u_char *user_data, const struct pcap_pkthdr* phdr,
 		tv.tv_sec = phdr->ts.tv_sec;
 		tv.tv_usec = phdr->ts.tv_usec;
 		if (process_packet(cb_ctxt->ft, pkt + s, af,
-		    phdr->caplen - s, phdr->len - s, &tv) == PP_MALLOC_FAIL)
+		    phdr->caplen - s, phdr->len - s, &tv, src_adj_addr, dest_adj_addr ) == PP_MALLOC_FAIL) /*Hacked to pass adj src and dest addresses*/
 			cb_ctxt->fatal = 1;
 	}
 }
