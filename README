@@ -1,5 +1,9 @@
 Welcome to softflowd, a flow-based network monitor.
 
+Hacked version of softflowd. 
+Uses src/dest Adj MAC addresses to generate fake AS numbers, so the packet
+route can be determined. 
+
 Introduction
 ------------
 
